@@ -149,7 +149,17 @@ def create_tables(cursor):
     )
     """)
 
-
+def delete_organizer(cursor, conn, uid):
+    try:
+        cursor.execute("SELECT COUNT(*) FROM Organizer WHERE uid = %s", (uid,))
+        if cursor.fetchone()[0] == 0:
+            print("Fail")
+            return
+        cursor.execute("DELETE FROM Organizer WHERE uid = %s", (uid,))
+        conn.commit()
+        print("Success")
+    except Exception as e:
+        print("Fail")
 
 def main():
     parser = argparse.ArgumentParser()
