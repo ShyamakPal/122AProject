@@ -161,6 +161,41 @@ def delete_organizer(cursor, conn, uid):
     except Exception as e:
         print("Fail")
 
+def available_events(cursor, date):
+    try:
+        cursor.execute("""
+            SELECT e.eid, e.title, e.type, e.datetime,
+                   COUNT(*) AS availableSlots
+            FROM Event e
+            JOIN Slot s ON e.eid = s.eid
+            WHERE s.is_reserved = FALSE
+            AND e.datetime > %s
+            GROUP BY e.eid, e.title, e.type, e.datetime
+            ORDER BY e.datetime ASC, e.eid ASC
+        """, (date,))
+        rows = cursor.fetchall()
+        for row in rows:
+            print(','.join(str(x) for x in row))
+    except Exception as e:
+        print("Fail")
+
+def popular_event_types(cursor, n):
+    try:
+        cursor.execute("""
+            SELECT e.type, COUNT(*) AS reservedCount
+            FROM Event e
+            JOIN Slot s ON e.eid = s.eid
+            WHERE s.is_reserved = TRUE
+            GROUP BY e.type
+            HAVING reservedCount >= %s
+            ORDER BY reservedCount DESC, e.type ASC
+        """, (n,))
+        rows = cursor.fetchall()
+        for row in rows:
+            print(','.join(str(x) for x in row))
+    except Exception as e:
+        print("Fail")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("function")
@@ -176,6 +211,12 @@ def main():
     
     if(args.function == "import"):
         pass 
+    elif args.function == "deleteOrganizer":
+        delete_organizer(cursor, conn, args.args[0])
+    elif args.function == "availableEvents":
+        available_events(cursor, args.args[0])
+    elif args.function == "popularEventTypes":
+        popular_event_types(cursor, args.args[0])
 
     conn.commit()
     cursor.close()
