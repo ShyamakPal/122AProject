@@ -161,6 +161,52 @@ def delete_organizer(cursor, conn, uid):
     except Exception as e:
         print("Fail")
 
+def reserve_slot(cursor, conn, eid, snum, uid):
+    try:
+        cursor.execute("""
+            UPDATE Slot
+            SET is_reserved = TRUE, uid = %s
+            WHERE eid = %s AND snum = %s AND is_reserved = FALSE
+        """, (uid, eid, snum))
+        if cursor.rowcount == 1:
+            conn.commit()
+            print("Success")
+        else:
+            print("Fail")
+    except Exception:
+        print("Fail")
+
+def cancel_reservation(cursor, conn, eid, snum, uid):
+    try:
+        cursor.execute("""
+            UPDATE Slot
+            SET is_reserved = FALSE, uid = NULL
+            WHERE eid = %s AND snum = %s
+              AND is_reserved = TRUE AND uid = %s
+        """, (eid, snum, uid))
+        if cursor.rowcount == 1:
+            conn.commit()
+            print("Success")
+        else:
+            print("Fail")
+    except Exception:
+        print("Fail")
+
+def update_event(cursor, conn, eid, title, dt):
+    try:
+        cursor.execute("""
+            UPDATE Event
+            SET title = %s, datetime = %s
+            WHERE eid = %s
+        """, (title, dt, eid))
+        if cursor.rowcount == 1:
+            conn.commit()
+            print("Success")
+        else:
+            print("Fail")
+    except Exception:
+        print("Fail")
+
 def available_events(cursor, date):
     try:
         cursor.execute("""
@@ -206,17 +252,24 @@ def main():
 
     conn = connect_db()
     cursor = conn.cursor()
-    
-    create_tables(cursor)
-    
-    if(args.function == "import"):
-        pass 
-    elif args.function == "deleteOrganizer":
-        delete_organizer(cursor, conn, args.args[0])
-    elif args.function == "availableEvents":
-        available_events(cursor, args.args[0])
-    elif args.function == "popularEventTypes":
-        popular_event_types(cursor, args.args[0])
+
+    if args.function == "import":
+        create_tables(cursor)
+        pass
+    else:
+        cursor.execute("USE cs122a_hw2")
+        if args.function == "deleteOrganizer":
+            delete_organizer(cursor, conn, int(args.args[0]))
+        elif args.function == "reserveSlot":
+            reserve_slot(cursor, conn, int(args.args[0]), int(args.args[1]), int(args.args[2]))
+        elif args.function == "cancelReservation":
+            cancel_reservation(cursor, conn, int(args.args[0]), int(args.args[1]), int(args.args[2]))
+        elif args.function == "updateEvent":
+            update_event(cursor, conn, int(args.args[0]), args.args[1], args.args[2])
+        elif args.function == "availableEvents":
+            available_events(cursor, args.args[0])
+        elif args.function == "popularEventTypes":
+            popular_event_types(cursor, args.args[0])
 
     conn.commit()
     cursor.close()
