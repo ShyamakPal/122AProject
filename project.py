@@ -1,5 +1,3 @@
-
-
 # RON THIS (in venv or conda):
 # python3 -m venv .venv
 # .venv/bin/activate
@@ -16,7 +14,6 @@
 
 import mysql.connector
 import argparse
-
 
 
 
@@ -242,6 +239,57 @@ def popular_event_types(cursor, n):
     except Exception as e:
         print("Fail")
 
+def participant_schedule(cursor, uid):
+    try:
+        cursor.execute("""
+            SELECT e.eid, e.title, e.type, e.datetime, s.snum,
+                   v.vid, v.street, v.city, v.state, v.zip
+            FROM Slot s
+            JOIN Event e ON s.eid = e.eid
+            LEFT JOIN Hosting h ON e.eid = h.eid AND h.is_primary = TRUE
+            LEFT JOIN Venue v ON h.vid = v.vid
+            WHERE s.uid = %s
+            ORDER BY e.datetime ASC
+        """, (uid,))
+        rows = cursor.fetchall()
+        for row in rows:
+            print(','.join(str(x) if x is not None else 'NULL' for x in row))
+    except Exception as e:
+        print("Fail")
+
+
+def organizer_event_count(cursor, n):
+    try:
+        cursor.execute("""
+            SELECT o.uid, u.username, o.department, COUNT(*) AS eventCount
+            FROM Organizer o
+            JOIN User u ON o.uid = u.uid
+            JOIN Event e ON o.uid = e.creator_uid
+            GROUP BY o.uid, u.username, o.department
+            HAVING eventCount >= %s
+            ORDER BY eventCount DESC, o.uid ASC
+        """, (n,))
+        rows = cursor.fetchall()
+        for row in rows:
+            print(','.join(str(x) if x is not None else 'NULL' for x in row))
+    except Exception as e:
+        print("Fail")
+
+def event_venues(cursor, vid):
+    try:
+        cursor.execute("""
+            SELECT e.eid, e.title, e.type, e.datetime, h.is_primary
+            FROM Hosting h
+            JOIN Event e ON h.eid = e.eid
+            WHERE h.vid = %s
+            ORDER BY e.datetime ASC, e.eid ASC
+        """, (vid,))
+        rows = cursor.fetchall()
+        for row in rows:
+            print(','.join(str(x) if x is not None else 'NULL' for x in row))
+    except Exception as e:
+        print("Fail")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("function")
@@ -270,6 +318,12 @@ def main():
             available_events(cursor, args.args[0])
         elif args.function == "popularEventTypes":
             popular_event_types(cursor, args.args[0])
+        elif args.function == "participantSchedule":
+            participant_schedule(cursor, int(args.args[0]))
+        elif args.function == "organizerStats":
+            organizer_event_count(cursor, int(args.args[0]))
+        elif args.function == "venueEvents":
+            event_venues(cursor, int(args.args[0]))
 
     conn.commit()
     cursor.close()
