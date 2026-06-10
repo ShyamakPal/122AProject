@@ -14,22 +14,138 @@
 
 import mysql.connector
 import argparse
+import csv
+import os
 
 
 
 def connect_db():
-    mydb = mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password=""
-        )
+    mydb =mysql.connector.connect(user='test', password='password', database='cs122a')
     return mydb
 
+    # mydb = mysql.connector.connect(
+    #     host="localhost",
+    #     user="root",
+    #     password=""
+    # )
+    # return mydb
+
+
+def import_data(cursor, conn, folder_name):
+    try:
+        # cursor.execute("DROP DATABASE IF EXISTS cs122a")
+        # cursor.execute("CREATE DATABASE cs122a")
+        # cursor.execute("USE cs122a")
+
+        try:
+            cursor.execute("CREATE DATABASE cs122a")
+        except:
+            pass
+        cursor.execute("USE cs122a")
+
+        create_tables(cursor)
+        conn.commit()
+
+        table_order = [
+            ('User', 'User'),
+            ('Organizer', 'Organizer'),
+            ('Participant', 'Participant'),
+            ('Administrator', 'Administrator'),
+            ('Event', 'Event'),
+            ('Venue', 'Venue'),
+            ('OnCampus', 'OnCampus'),
+            ('OffCampus', 'OffCampus'),
+            ('Slot', 'Slot'),
+            ('Hosting', 'Hosting'),
+            ('Approval', 'Approval')
+        ]
+
+        for csv_file, table_name in table_order:
+            file_path = os.path.join(folder_name, f"{csv_file}.csv")
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    reader = csv.reader(f)
+                    for row in reader:
+                        if table_name == 'User':
+                            parsed_row = [int(row[0]), row[1], row[2], row[3]]
+                            cursor.execute("INSERT INTO User VALUES (%s, %s, %s, %s)", parsed_row)
+                        elif table_name == 'Organizer':
+                            parsed_row = [int(row[0]), row[1], int(row[2])]
+                            cursor.execute("INSERT INTO Organizer VALUES (%s, %s, %s)", parsed_row)
+                        elif table_name == 'Participant':
+                            parsed_row = [int(row[0]), row[1] if row[1] != 'NULL' else None]
+                            cursor.execute("INSERT INTO Participant VALUES (%s, %s)", parsed_row)
+                        elif table_name == 'Administrator':
+                            parsed_row = [int(row[0]), row[1], row[2]]
+                            cursor.execute("INSERT INTO Administrator VALUES (%s, %s, %s)", parsed_row)
+                        elif table_name == 'Event':
+                            parsed_row = [int(row[0]), int(row[1]), row[2], row[3], row[4]]
+                            cursor.execute("INSERT INTO Event VALUES (%s, %s, %s, %s, %s)", parsed_row)
+                        elif table_name == 'Venue':
+                            parsed_row = [int(row[0]), row[1], row[2], row[3], row[4]]
+                            cursor.execute("INSERT INTO Venue VALUES (%s, %s, %s, %s, %s)", parsed_row)
+                        elif table_name == 'OnCampus':
+                            parsed_row = [int(row[0]), row[1]]
+                            cursor.execute("INSERT INTO OnCampus VALUES (%s, %s)", parsed_row)
+                        elif table_name == 'OffCampus':
+                            parsed_row = [int(row[0]), int(row[1])]
+                            cursor.execute("INSERT INTO OffCampus VALUES (%s, %s)", parsed_row)
+                        elif table_name == 'Slot':
+                            is_reserved = row[2] == '1'
+                            uid = int(row[3]) if row[3] != 'NULL' else None
+                            parsed_row = [int(row[0]), int(row[1]), is_reserved, uid]
+                            cursor.execute("INSERT INTO Slot VALUES (%s, %s, %s, %s)", parsed_row)
+                        elif table_name == 'Hosting':
+                            is_primary = row[2] == '1'
+                            parsed_row = [int(row[0]), int(row[1]), is_primary]
+                            cursor.execute("INSERT INTO Hosting VALUES (%s, %s, %s)", parsed_row)
+                        elif table_name == 'Approval':
+                            parsed_row = [int(row[0]), int(row[1]), row[2], row[3]]
+                            cursor.execute("INSERT INTO Approval VALUES (%s, %s, %s, %s)", parsed_row)
+
+        conn.commit()
+        print("Success")
+    except Exception as e:
+        print("Fail")
+
+def insert_admin(cursor, conn, uid, email, username, joined, firstname, lastname):
+    try:
+        cursor.execute("SELECT COUNT(*) FROM User WHERE uid = %s", (uid,))
+        if cursor.fetchone()[0] > 0:
+            print("Fail")
+            return
+
+        cursor.execute("INSERT INTO User VALUES (%s, %s, %s, %s)", (uid, email, username, joined))
+        cursor.execute("INSERT INTO Administrator VALUES (%s, %s, %s)", (uid, firstname, lastname))
+
+        conn.commit()
+        print("Success")
+    except Exception as e:
+        print("Fail")
+
+def add_venue(cursor, conn, eid, vid, is_primary):
+    try:
+        if is_primary:
+            cursor.execute("SELECT COUNT(*) FROM Hosting WHERE eid = %s AND is_primary = TRUE", (eid,))
+            if cursor.fetchone()[0] > 0:
+                print("Fail")
+                return
+
+        cursor.execute("INSERT INTO Hosting VALUES (%s, %s, %s)", (eid, vid, is_primary))
+        conn.commit()
+        print("Success")
+    except Exception as e:
+        print("Fail")
 
 def create_tables(cursor):
-    cursor.execute("DROP DATABASE IF EXISTS cs122a_hw2")
-    cursor.execute("CREATE DATABASE cs122a_hw2")
-    cursor.execute("USE cs122a_hw2")
+    # # cursor.execute("DROP DATABASE IF EXISTS cs122a")
+    # cursor.execute("CREATE DATABASE cs122a")
+    # cursor.execute("USE cs122a")
+    try:
+        cursor.execute("CREATE DATABASE cs122a")
+    except:
+        pass
+    cursor.execute("USE cs122a")
 
     cursor.execute("""
     CREATE TABLE User (
@@ -297,16 +413,18 @@ def main():
 
     args = parser.parse_args()
 
-
     conn = connect_db()
     cursor = conn.cursor()
 
     if args.function == "import":
-        create_tables(cursor)
-        pass
+        import_data(cursor, conn, args.args[0])
     else:
-        cursor.execute("USE cs122a_hw2")
-        if args.function == "deleteOrganizer":
+        cursor.execute("USE cs122a")
+        if args.function == "insertAdmin":
+            insert_admin(cursor, conn, int(args.args[0]), args.args[1], args.args[2], args.args[3], args.args[4], args.args[5])
+        elif args.function == "addVenue":
+            add_venue(cursor, conn, int(args.args[0]), int(args.args[1]), args.args[2].lower() == 'true')
+        elif args.function == "deleteOrganizer":
             delete_organizer(cursor, conn, int(args.args[0]))
         elif args.function == "reserveSlot":
             reserve_slot(cursor, conn, int(args.args[0]), int(args.args[1]), int(args.args[2]))
@@ -317,7 +435,7 @@ def main():
         elif args.function == "availableEvents":
             available_events(cursor, args.args[0])
         elif args.function == "popularEventTypes":
-            popular_event_types(cursor, args.args[0])
+            popular_event_types(cursor, int(args.args[0]))
         elif args.function == "participantSchedule":
             participant_schedule(cursor, int(args.args[0]))
         elif args.function == "organizerStats":
